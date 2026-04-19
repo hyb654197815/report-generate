@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model ReportTemplate {
+  id                 Int               @id @default(autoincrement())
+  name               String
+  type               Int // 1: Word, 2: PDF
+  backgroundPdfUrl   String?         @map("background_pdf_url")
+  draftHtmlUrl       String?         @map("draft_html_url")
+  width              Float             @default(595)
+  height             Float             @default(842)
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  elements           TemplateElement[]
+
+  @@map("report_template")
+}
+
+model SysComponent {
+  id            Int               @id @default(autoincrement())
+  name          String
+  type          String // TEXT | IMAGE
+  defaultScript String?           @map("default_script") @db.Text
+  defaultConfig String?           @map("default_config") @db.Text
+  createdAt     DateTime          @default(now()) @map("created_at")
+  elements      TemplateElement[]
+
+  @@map("sys_component")
+}
+
+model TemplateElement {
+  id            Int            @id @default(autoincrement())
+  templateId    Int            @map("template_id")
+  componentId   Int?           @map("component_id")
+  elementType   String         @map("element_type")
+  positionJson  String         @map("position_json") @db.Text
+  scriptCode    String?        @map("script_code") @db.Text
+  staticContent String?        @map("static_content") @db.Text
+  styleConfig   String?        @map("style_config") @db.Text
+  template      ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  component     SysComponent?  @relation(fields: [componentId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
+  @@map("template_element")
+}
+
+/// Singleton row id=1: OpenAI-compatible API (baseUrl + /chat/completions). Env vars remain fallback when fields are empty.
+model AiSettings {
+  id          Int      @id
+  baseUrl     String   @default("https://api.openai.com/v1") @map("base_url") @db.VarChar(512)
+  apiKey      String?  @map("api_key") @db.VarChar(1024)
+  chatModel   String   @default("gpt-4o-mini") @map("chat_model") @db.VarChar(128)
+  imageModel  String   @default("gpt-image-1") @map("image_model") @db.VarChar(128)
+  mockEnabled Boolean  @default(false) @map("mock_enabled")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_settings")
+}
