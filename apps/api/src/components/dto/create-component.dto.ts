@@ -5,8 +5,8 @@ export class CreateComponentDto {
   @MinLength(1)
   name!: string;
 
-  @IsIn(['TEXT', 'IMAGE'])
-  type!: 'TEXT' | 'IMAGE';
+  @IsIn(['TEXT', 'IMAGE', 'CHART'])
+  type!: 'TEXT' | 'IMAGE' | 'CHART';
 
   @IsOptional()
   @IsString()

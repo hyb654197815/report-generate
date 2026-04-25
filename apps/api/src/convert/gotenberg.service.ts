@@ -71,6 +71,9 @@ body { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans CJK SC", "N
     htmlFragment: string,
     widthPx: number,
     heightPx: number,
+    opts?: {
+      waitDelayMs?: number;
+    },
   ): Promise<Buffer> {
     const w = Math.max(1, Math.floor(widthPx));
     const h = Math.max(1, Math.floor(heightPx));
@@ -84,6 +87,9 @@ body { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans CJK SC", "N
     fd.append('height', String(h));
     fd.append('clip', 'true');
     fd.append('format', 'png');
+    if (opts?.waitDelayMs && opts.waitDelayMs > 0) {
+      fd.append('waitDelay', `${Math.ceil(opts.waitDelayMs)}ms`);
+    }
     const url = `${this.baseUrl()}/forms/chromium/screenshot/html`;
     const res = await axios.post(url, fd, {
       headers: fd.getHeaders(),

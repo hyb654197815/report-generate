@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -19,6 +20,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { HtmlQuillEditor } from '../components/HtmlQuillEditor';
 import { ScriptDebugPanel } from '../components/ScriptDebugPanel';
 import { api } from '../api';
+import { defaultChartBarScript, defaultChartRadarScript } from '../lib/chart-script-templates';
 
 type SysComponent = {
   id: number;
@@ -43,7 +45,7 @@ const defaultRichHtml =
 
 type CreateComponentForm = {
   name: string;
-  type: 'TEXT' | 'IMAGE';
+  type: 'TEXT' | 'IMAGE' | 'CHART';
   defaultScript?: string;
 };
 
@@ -54,7 +56,7 @@ export function ComponentsPage() {
   /** `null` = 新建；否则为正在编辑的组件 id */
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form] = Form.useForm<CreateComponentForm>();
-  const componentType = Form.useWatch('type', form) as 'TEXT' | 'IMAGE' | undefined;
+  const componentType = Form.useWatch('type', form) as 'TEXT' | 'IMAGE' | 'CHART' | undefined;
 
   const [editorSession, setEditorSession] = useState(0);
   const [richHtml, setRichHtml] = useState(defaultRichHtml);
@@ -89,11 +91,12 @@ export function ComponentsPage() {
     if (!c) {
       return;
     }
-    const t = c.type === 'IMAGE' ? 'IMAGE' : 'TEXT';
+    const t = c.type === 'IMAGE' || c.type === 'CHART' ? c.type : 'TEXT';
     form.setFieldsValue({
       name: c.name,
       type: t,
-      defaultScript: c.defaultScript ?? (t === 'TEXT' ? defaultTextScript : defaultImageScript),
+      defaultScript:
+        c.defaultScript ?? (t === 'TEXT' ? defaultTextScript : t === 'IMAGE' ? defaultImageScript : defaultChartBarScript),
     });
     let rich = defaultRichHtml;
     let placeholder = 'https://via.placeholder.com/400x200.png';
@@ -121,7 +124,7 @@ export function ComponentsPage() {
   const createM = useMutation({
     mutationFn: async (values: {
       name: string;
-      type: 'TEXT' | 'IMAGE';
+      type: 'TEXT' | 'IMAGE' | 'CHART';
       defaultScript?: string;
       defaultConfig?: string;
     }) => {
@@ -143,7 +146,7 @@ export function ComponentsPage() {
     mutationFn: async (payload: {
       id: number;
       name: string;
-      type: 'TEXT' | 'IMAGE';
+      type: 'TEXT' | 'IMAGE' | 'CHART';
       defaultScript?: string;
       defaultConfig?: string;
     }) => {
@@ -243,7 +246,7 @@ export function ComponentsPage() {
         style={{ marginBottom: 16 }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-          TEXT 类型使用富文本编辑默认 HTML（存于 defaultConfig.richHtml）；IMAGE 类型填写占位图地址（placeholderUrl）。
+          TEXT 类型使用富文本编辑默认 HTML（存于 defaultConfig.richHtml）；IMAGE 类型填写占位图地址（placeholderUrl）；CHART 类型通过脚本返回 ECharts Option。
         </Typography.Paragraph>
         <Table<SysComponent>
           rowKey="id"
@@ -275,7 +278,9 @@ export function ComponentsPage() {
             const defaultConfig =
               v.type === 'TEXT'
                 ? JSON.stringify({ richHtml: richHtml })
-                : JSON.stringify({ placeholderUrl: placeholderUrl.trim() });
+                : v.type === 'IMAGE'
+                  ? JSON.stringify({ placeholderUrl: placeholderUrl.trim() })
+                  : JSON.stringify({ chartType: 'bar' });
             try {
               JSON.parse(defaultConfig);
             } catch {
@@ -307,14 +312,16 @@ export function ComponentsPage() {
               options={[
                 { value: 'TEXT', label: 'TEXT（富文本 + fetchData）' },
                 { value: 'IMAGE', label: 'IMAGE（generateChart 出图）' },
+                { value: 'CHART', label: 'CHART（generateChartOption 返回 ECharts JSON）' },
               ]}
-              onChange={(t: 'TEXT' | 'IMAGE') => {
+              onChange={(t: 'TEXT' | 'IMAGE' | 'CHART') => {
                 form.setFieldsValue({
-                  defaultScript: t === 'TEXT' ? defaultTextScript : defaultImageScript,
+                  defaultScript:
+                    t === 'TEXT' ? defaultTextScript : t === 'IMAGE' ? defaultImageScript : defaultChartBarScript,
                 });
                 if (t === 'TEXT') {
                   setRichHtml('<p>{{title}}</p>');
-                } else {
+                } else if (t === 'IMAGE') {
                   setPlaceholderUrl('https://via.placeholder.com/400x200.png');
                 }
                 setEditorSession((s) => s + 1);
@@ -323,10 +330,26 @@ export function ComponentsPage() {
           </Form.Item>
           <Form.Item shouldUpdate noStyle>
             {() => {
-              const t = form.getFieldValue('type') as 'TEXT' | 'IMAGE' | undefined;
+              const t = form.getFieldValue('type') as 'TEXT' | 'IMAGE' | 'CHART' | undefined;
               const sc = (form.getFieldValue('defaultScript') as string) ?? '';
               return (
                 <Form.Item name="defaultScript" label="默认脚本（fetchData / generateChart）">
+                  {t === 'CHART' ? (
+                    <Space style={{ marginBottom: 8 }}>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldValue('defaultScript', defaultChartBarScript)}
+                      >
+                        使用柱状图模板
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => form.setFieldValue('defaultScript', defaultChartRadarScript)}
+                      >
+                        使用雷达图模板
+                      </Button>
+                    </Space>
+                  ) : null}
                   <div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
                     <Editor
                       height="220px"
@@ -352,7 +375,7 @@ export function ComponentsPage() {
                 placeholder="https://…"
               />
             </Form.Item>
-          ) : (
+          ) : componentType === 'TEXT' ? (
             <Form.Item label="默认富文本（defaultConfig.richHtml）">
               <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 13 }}>
                 使用工具栏设置标题、加粗、颜色等；{' '}
@@ -374,6 +397,14 @@ export function ComponentsPage() {
                 />
               </div>
             </Form.Item>
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="CHART 类型默认配置"
+              description="图表组件默认配置由脚本返回的 ECharts Option 决定；推荐通过脚本模板快速开始。"
+              style={{ marginBottom: 16 }}
+            />
           )}
 
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>

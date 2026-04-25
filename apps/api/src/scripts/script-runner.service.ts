@@ -17,10 +17,14 @@ export class ScriptRunnerService {
     return this.run(script, params, 'base64');
   }
 
+  async runGenerateChartOption(script: string, params: Record<string, unknown>) {
+    return this.run(script, params, 'echartsOption');
+  }
+
   private async run(
     script: string,
     params: Record<string, unknown>,
-    expect: 'object' | 'base64',
+    expect: 'object' | 'base64' | 'echartsOption',
   ): Promise<unknown> {
     const env = loadEnv();
     const http = createSandboxHttp(env.httpAllowlistHosts);
@@ -33,13 +37,18 @@ export class ScriptRunnerService {
       ...args: string[]
     ) => (...args: unknown[]) => Promise<unknown>;
 
+    const fnLookup =
+      expect === 'object'
+        ? `typeof fetchData !== 'undefined' ? fetchData : null`
+        : expect === 'base64'
+          ? `typeof generateChart !== 'undefined' ? generateChart : null`
+          : `(typeof generateChartOption !== 'undefined' ? generateChartOption : (typeof generateChart !== 'undefined' ? generateChart : null))`;
+
     const body = `
       ${script}
-      const __fn = typeof fetchData !== 'undefined'
-        ? fetchData
-        : (typeof generateChart !== 'undefined' ? generateChart : null);
+      const __fn = ${fnLookup};
       if (!__fn) {
-        throw new Error('Script must define fetchData or generateChart');
+        throw new Error('Script missing required function for current elementType');
       }
       return await __fn({ http, ai, params });
     `;
@@ -71,6 +80,16 @@ export class ScriptRunnerService {
         throw new Error('generateChart must return raw base64');
       }
       return s;
+    } else if (expect === 'echartsOption') {
+      if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+        throw new Error('generateChartOption must return a plain object');
+      }
+      try {
+        JSON.stringify(result);
+      } catch {
+        throw new Error('generateChartOption return value must be JSON-serializable');
+      }
+      return result;
     }
 
     return result;

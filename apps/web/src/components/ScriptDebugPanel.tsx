@@ -2,6 +2,7 @@ import { BugOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Alert, Button, Input, Space, Typography } from 'antd';
+import ReactECharts from 'echarts-for-react';
 import { api } from '../api';
 
 type DebugOkObject = { ok: true; kind: 'object'; result: Record<string, unknown> };
@@ -13,8 +14,13 @@ type DebugOkB64 = {
   length: number;
 };
 type DebugErr = { ok: false; message: string; name?: string; stack?: string };
+type DebugOkEcharts = {
+  ok: true;
+  kind: 'echartsOption';
+  result: Record<string, unknown>;
+};
 
-type DebugResponse = DebugOkObject | DebugOkB64 | DebugErr;
+type DebugResponse = DebugOkObject | DebugOkB64 | DebugOkEcharts | DebugErr;
 
 const defaultParamsText = `{
   "title": "调试标题",
@@ -22,7 +28,7 @@ const defaultParamsText = `{
 }`;
 
 export type ScriptDebugPanelProps = {
-  elementType: 'TEXT' | 'IMAGE';
+  elementType: 'TEXT' | 'IMAGE' | 'CHART';
   script: string;
 };
 
@@ -120,6 +126,32 @@ export function ScriptDebugPanel({ elementType, script }: ScriptDebugPanelProps)
         />
       );
     }
+    if (last.kind === 'echartsOption') {
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message="generateChartOption 执行成功"
+          description={
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 8, background: '#fff' }}>
+                <ReactECharts option={last.result} style={{ height: 320 }} notMerge lazyUpdate />
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  maxHeight: 220,
+                  overflow: 'auto',
+                  fontSize: 12,
+                }}
+              >
+                {JSON.stringify(last.result, null, 2)}
+              </pre>
+            </Space>
+          }
+        />
+      );
+    }
     return (
       <Alert
         type="success"
@@ -153,7 +185,7 @@ export function ScriptDebugPanel({ elementType, script }: ScriptDebugPanelProps)
         脚本调试
       </Typography.Text>
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-        使用与报告生成相同的沙箱（http 白名单、AI、超时等）。TEXT 校验返回值为可 JSON 序列化的对象；IMAGE 校验非空 Base64。
+        使用与报告生成相同的沙箱（http 白名单、AI、超时等）。TEXT 校验对象，IMAGE 校验 Base64，CHART 校验 ECharts Option 对象。
       </Typography.Paragraph>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div>

@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Buffer } from 'node:buffer';
+import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -16,12 +18,23 @@ import { pageDisplayViewRect } from '../lib/pdf-view-rect';
 
 @Injectable()
 export class ReportsService {
+  private static echartsBundleCache: string | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly scripts: ScriptRunnerService,
     private readonly gotenberg: GotenbergService,
   ) {}
+
+  private loadEchartsBundle(): string {
+    if (ReportsService.echartsBundleCache) {
+      return ReportsService.echartsBundleCache;
+    }
+    const bundlePath = require.resolve('echarts/dist/echarts.min.js');
+    ReportsService.echartsBundleCache = readFileSync(bundlePath, 'utf-8');
+    return ReportsService.echartsBundleCache;
+  }
 
   async generate(templateId: number, params: Record<string, unknown>) {
     const template = await this.prisma.reportTemplate.findUnique({
@@ -129,6 +142,41 @@ export class ReportsService {
         } catch {
           embedded = await pdfDoc.embedJpg(bytes);
         }
+        page.drawImage(embedded, {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        });
+      } else if (el.elementType === 'CHART') {
+        const script =
+          (el.scriptCode && el.scriptCode.trim()) ||
+          el.component?.defaultScript ||
+          '';
+        if (!script.trim()) {
+          continue;
+        }
+        const option = (await this.scripts.runGenerateChartOption(
+          script,
+          params,
+        )) as Record<string, unknown>;
+        const widthPx = Math.max(1, Math.floor(rect.width * 2));
+        const heightPx = Math.max(1, Math.floor(rect.height * 2));
+        const optionJson = JSON.stringify(option).replace(/</g, '\\u003c');
+        const echartsBundle = this.loadEchartsBundle();
+        const chartHtml = `
+          <div id="chart" style="width:${widthPx}px;height:${heightPx}px;"></div>
+          <script>${echartsBundle}</script>
+          <script>
+            const option = ${optionJson};
+            const chart = echarts.init(document.getElementById('chart'));
+            chart.setOption(option);
+          </script>
+        `;
+        const pngBytes = await this.gotenberg.htmlToPng(chartHtml, widthPx, heightPx, {
+          waitDelayMs: 1200,
+        });
+        const embedded = await pdfDoc.embedPng(pngBytes);
         page.drawImage(embedded, {
           x: rect.x,
           y: rect.y,

@@ -70,7 +70,7 @@ export class ElementInputDto {
   componentId?: number | null;
 
   @IsString()
-  elementType!: 'TEXT' | 'IMAGE';
+  elementType!: 'TEXT' | 'IMAGE' | 'CHART';
 
   @ValidateNested()
   @Type(() => PositionDto)

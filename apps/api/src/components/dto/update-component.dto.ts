@@ -7,8 +7,8 @@ export class UpdateComponentDto {
   name?: string;
 
   @IsOptional()
-  @IsIn(['TEXT', 'IMAGE'])
-  type?: 'TEXT' | 'IMAGE';
+  @IsIn(['TEXT', 'IMAGE', 'CHART'])
+  type?: 'TEXT' | 'IMAGE' | 'CHART';
 
   @IsOptional()
   @IsString()

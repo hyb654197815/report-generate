@@ -40,6 +40,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HtmlQuillEditor } from '../components/HtmlQuillEditor';
 import { ScriptDebugPanel } from '../components/ScriptDebugPanel';
 import { api } from '../api';
+import { defaultChartBarScript, defaultChartRadarScript } from '../lib/chart-script-templates';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -114,7 +115,7 @@ type SysComponent = {
 type Meta = {
   localKey: string;
   page: number;
-  elementType: 'TEXT' | 'IMAGE';
+  elementType: 'TEXT' | 'IMAGE' | 'CHART';
   scriptCode: string;
   staticContent: string;
   componentId: number | null;
@@ -141,7 +142,7 @@ function parseMeta(raw: unknown, defaultPage = 1): Meta {
           ? r.localKey
           : crypto.randomUUID(),
       page,
-      elementType: r.elementType === 'IMAGE' ? 'IMAGE' : 'TEXT',
+      elementType: r.elementType === 'IMAGE' || r.elementType === 'CHART' ? r.elementType : 'TEXT',
       scriptCode: r.scriptCode ?? '',
       staticContent: r.staticContent ?? '',
       componentId: r.componentId ?? null,
@@ -158,7 +159,7 @@ function parseMeta(raw: unknown, defaultPage = 1): Meta {
 }
 
 function applyComponentDefaults(comp: SysComponent): Pick<Meta, 'elementType' | 'scriptCode' | 'staticContent'> {
-  const elementType = comp.type === 'IMAGE' ? 'IMAGE' : 'TEXT';
+  const elementType = comp.type === 'IMAGE' || comp.type === 'CHART' ? comp.type : 'TEXT';
   let scriptCode = comp.defaultScript?.trim() ? comp.defaultScript : '';
   let staticContent = '';
   if (comp.defaultConfig?.trim()) {
@@ -179,10 +180,19 @@ function applyComponentDefaults(comp: SysComponent): Pick<Meta, 'elementType' | 
   }
   if (!staticContent) {
     staticContent =
-      elementType === 'TEXT' ? '<p>文本 {{title}}</p>' : 'https://via.placeholder.com/400x200.png';
+      elementType === 'TEXT'
+        ? '<p>文本 {{title}}</p>'
+        : elementType === 'IMAGE'
+          ? 'https://via.placeholder.com/400x200.png'
+          : '{}';
   }
   if (!scriptCode) {
-    scriptCode = elementType === 'TEXT' ? DEFAULT_TEXT_SCRIPT : DEFAULT_IMAGE_SCRIPT;
+    scriptCode =
+      elementType === 'TEXT'
+        ? DEFAULT_TEXT_SCRIPT
+        : elementType === 'IMAGE'
+          ? DEFAULT_IMAGE_SCRIPT
+          : defaultChartBarScript;
   }
   return { elementType, scriptCode, staticContent };
 }
@@ -808,7 +818,7 @@ export function DesignerPage() {
     },
   });
 
-  const addPresetElement = (t: 'TEXT' | 'IMAGE') => {
+  const addPresetElement = (t: 'TEXT' | 'IMAGE' | 'CHART') => {
     const canvas = fabricRef.current;
     if (!canvas || !layout || layout.w === 0) {
       return;
@@ -821,11 +831,14 @@ export function DesignerPage() {
     const nextMeta: Meta = {
       ...base,
       elementType: t,
-      scriptCode: t === 'TEXT' ? DEFAULT_TEXT_SCRIPT : DEFAULT_IMAGE_SCRIPT,
+      scriptCode:
+        t === 'TEXT' ? DEFAULT_TEXT_SCRIPT : t === 'IMAGE' ? DEFAULT_IMAGE_SCRIPT : defaultChartBarScript,
       staticContent:
         t === 'TEXT'
           ? '<p><strong>{{title}}</strong></p><p>{{body}}</p>'
-          : 'https://via.placeholder.com/400x200.png?text=IMAGE',
+          : t === 'IMAGE'
+            ? 'https://via.placeholder.com/400x200.png?text=IMAGE'
+            : '{}',
     };
     const r = new Rect({
       left,
@@ -943,6 +956,12 @@ export function DesignerPage() {
                     icon: <PictureOutlined />,
                     label: '图片区域',
                     onClick: () => addPresetElement('IMAGE'),
+                  },
+                  {
+                    key: 'chart',
+                    icon: <PictureOutlined />,
+                    label: '图表区域',
+                    onClick: () => addPresetElement('CHART'),
                   },
                 ],
               }}
@@ -1097,6 +1116,7 @@ export function DesignerPage() {
                               options={[
                                 { value: 'TEXT', label: 'TEXT · 富文本 + fetchData' },
                                 { value: 'IMAGE', label: 'IMAGE · generateChart' },
+                                { value: 'CHART', label: 'CHART · generateChartOption' },
                               ]}
                             />
                           </Form.Item>
@@ -1146,7 +1166,7 @@ export function DesignerPage() {
                   },
                   {
                     key: 'html',
-                    label: meta.elementType === 'TEXT' ? '富文本' : '占位图',
+                    label: meta.elementType === 'TEXT' ? '富文本' : meta.elementType === 'IMAGE' ? '占位图' : '图表配置',
                     forceRender: true,
                     children: (
                       <div style={{ paddingTop: 12 }}>
@@ -1172,7 +1192,7 @@ export function DesignerPage() {
                               />
                             </div>
                           </>
-                        ) : (
+                        ) : meta.elementType === 'IMAGE' ? (
                           <>
                             <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
                               设计预览用占位图 URL（与公共组件里 placeholderUrl 含义相同）。
@@ -1184,6 +1204,10 @@ export function DesignerPage() {
                               style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 13 }}
                             />
                           </>
+                        ) : (
+                          <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
+                            CHART 类型通过脚本返回 ECharts Option，此处无需额外静态内容。
+                          </Typography.Paragraph>
                         )}
                       </div>
                     ),
@@ -1196,8 +1220,25 @@ export function DesignerPage() {
                       <div style={{ paddingTop: 12 }}>
                         <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 8 }}>
                           TEXT：<Typography.Text code>fetchData</Typography.Text> · IMAGE：{' '}
-                          <Typography.Text code>generateChart</Typography.Text>
+                          <Typography.Text code>generateChart</Typography.Text> · CHART：{' '}
+                          <Typography.Text code>generateChartOption</Typography.Text>
                         </Typography.Paragraph>
+                        {meta.elementType === 'CHART' ? (
+                          <Space style={{ marginBottom: 8 }}>
+                            <Button
+                              size="small"
+                              onClick={() => setMeta((m) => ({ ...m, scriptCode: defaultChartBarScript }))}
+                            >
+                              使用柱状图模板
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => setMeta((m) => ({ ...m, scriptCode: defaultChartRadarScript }))}
+                            >
+                              使用雷达图模板
+                            </Button>
+                          </Space>
+                        ) : null}
                         <div
                           style={{
                             border: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
