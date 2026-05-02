@@ -2,6 +2,7 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { getRouterBasename } from './lib/deployBase';
 import { AppLayout } from './layout/AppLayout';
 import { AiSettingsPage } from './pages/AiSettingsPage';
 import { ComponentsPage } from './pages/ComponentsPage';
@@ -19,7 +20,7 @@ export default function App() {
     <ConfigProvider locale={zhCN}>
       <AntApp>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
+          <BrowserRouter basename={getRouterBasename()}>
             <Routes>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<TemplatesPage />} />
