@@ -41,6 +41,7 @@ import { HtmlQuillEditor } from '../components/HtmlQuillEditor';
 import { ScriptDebugPanel } from '../components/ScriptDebugPanel';
 import { api } from '../api';
 import { defaultChartBarScript, defaultChartRadarScript } from '../lib/chart-script-templates';
+import { randomUUID } from '../lib/random-uuid';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -140,7 +141,7 @@ function parseMeta(raw: unknown, defaultPage = 1): Meta {
       localKey:
         typeof r.localKey === 'string' && r.localKey.length > 0
           ? r.localKey
-          : crypto.randomUUID(),
+          : randomUUID(),
       page,
       elementType: r.elementType === 'IMAGE' || r.elementType === 'CHART' ? r.elementType : 'TEXT',
       scriptCode: r.scriptCode ?? '',
@@ -149,7 +150,7 @@ function parseMeta(raw: unknown, defaultPage = 1): Meta {
     };
   }
   return {
-    localKey: crypto.randomUUID(),
+    localKey: randomUUID(),
     page: defaultPage,
     elementType: 'TEXT',
     scriptCode: DEFAULT_TEXT_SCRIPT,

@@ -6,9 +6,6 @@ services:
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio12345
-    ports:
-      - '9000:9000'
-      - '9001:9001'
     volumes:
       - minio_data:/data
     healthcheck:
@@ -32,8 +29,6 @@ services:
 
   gotenberg:
     image: gotenberg/gotenberg:8
-    ports:
-      - '3030:3000'
 
   api:
     build:
