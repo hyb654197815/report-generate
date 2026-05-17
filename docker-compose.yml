@@ -1,25 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: report_generate
-      MYSQL_USER: report
-      MYSQL_PASSWORD: report
-    ports:
-      - '3306:3306'
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-proot']
-      interval: 5s
-      timeout: 5s
-      retries: 30
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - '6379:6379'
 
   minio:
     image: minio/minio:latest
@@ -61,10 +40,6 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_started
       minio:
         condition: service_healthy
       minio-init:
@@ -72,8 +47,8 @@ services:
       gotenberg:
         condition: service_started
     environment:
-      DATABASE_URL: mysql://report:report@mysql:3306/report_generate
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: mysql://root:dowinno.1~@121.43.27.98:3306/report_generate
+      REDIS_URL: redis://localhost:6379
       MINIO_ENDPOINT: minio
       MINIO_PORT: '9000'
       MINIO_USE_SSL: 'false'
@@ -87,9 +62,7 @@ services:
       AI_MOCK_ENABLED: 'false'
       AI_DAILY_LIMIT: '100'
       PORT: '4000'
-      CORS_ORIGIN: http://localhost:5173
-    ports:
-      - '4000:4000'
+      CORS_ORIGIN: http://localhost:10099
 
   web:
     build:
@@ -100,8 +73,7 @@ services:
     depends_on:
       - api
     ports:
-      - '5173:80'
+      - '10099:80'
 
 volumes:
-  mysql_data:
   minio_data:
